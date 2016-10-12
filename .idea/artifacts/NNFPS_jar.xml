@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="NNFPS:jar">
+    <output-path>$PROJECT_DIR$/out/artifacts/NNFPS_jar</output-path>
+    <root id="archive" name="NNFPS.jar">
+      <element id="module-output" name="NNFPS" />
+    </root>
+  </artifact>
+</component>

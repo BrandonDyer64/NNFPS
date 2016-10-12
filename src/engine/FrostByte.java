@@ -14,6 +14,9 @@ public class FrostByte {
     public float renderDistance = 2000;
     public float clipDistance = 0;
 
+    public Render renderPre = null;
+    public Render renderPost = null;
+
     public FrostByte(String title) {
         this(title, 640, 400);
     }
@@ -36,7 +39,16 @@ public class FrostByte {
 
         g.setColor(Color.BLACK);
         g.fillRect(0, 0, canvas.getWidth(), canvas.getHeight());
+
+        if (renderPre != null) {
+            renderPre.render(g);
+        }
+
         renderWorld(delta, world, camera, canvas.getWidth(), canvas.getHeight(), g);
+
+        if (renderPost != null) {
+            renderPost.render(g);
+        }
 
         g.dispose();
         bs.show();
@@ -57,7 +69,7 @@ public class FrostByte {
             if (selectedWall != null) {
                 int h = (int) ((height / nearest) * selectedWall.height);
                 int he = (int) (height / nearest);
-                int y = height / 2 + he / 2 - (int) camera.p;
+                int y = height / 2 + he / 2 - (int) camera.p  + (int) ((camera.z * 2000) / (nearest * 10 + 1));
                 RenderLine renderLine = new RenderLine(camera.x + (float) Math.cos(dir) * nearest, camera.y + (float) Math.sin(dir) * nearest, pixel, y, 1, h, nearest, Color.WHITE, camera);
                 if (selectedWall.shader != null) {
                     renderLine = selectedWall.shader.shade(renderLine);
@@ -96,4 +108,9 @@ public class FrostByte {
 
         return -1; // No collision
     }
+
+    public interface Render {
+        void render(Graphics g);
+    }
+
 }
