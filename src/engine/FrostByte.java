@@ -38,7 +38,7 @@ public class FrostByte {
         Graphics2D g = (Graphics2D) bs.getDrawGraphics();
 
         g.setColor(Color.BLACK);
-        //g.fillRect(0, 0, canvas.getWidth(), canvas.getHeight());
+        g.fillRect(0, 0, canvas.getWidth(), canvas.getHeight());
 
         if (renderPre != null) {
             renderPre.render(g);
