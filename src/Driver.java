@@ -1,13 +1,7 @@
-import engine.Camera;
-import engine.FrostByte;
-import engine.Wall;
-import engine.World;
+import engine.*;
 
 import java.awt.*;
-import java.awt.event.KeyEvent;
-import java.awt.event.KeyListener;
-import java.awt.event.MouseEvent;
-import java.awt.event.MouseMotionListener;
+import java.awt.event.*;
 
 /**
  * Created by brandon on 10/12/2016.
@@ -16,8 +10,9 @@ public class Driver {
 
     public static float time = 0;
     public static int mouseX = 0, mouseY = 0;
-    public static boolean moveForward, moveBackward, moveLeft, moveRight, walk, crouch;
+    public static boolean moveForward, moveBackward, moveLeft, moveRight, walk, crouch, shoot;
     public static float runspeed = 2.0f, walkspeed = 1f, crouchspeed = 0.8f;
+    public static float shot = 0, shotTime = 0;
 
     public static void main(String[] args) {
         FrostByte engine = new FrostByte("Test Game");
@@ -48,11 +43,43 @@ public class Driver {
         Camera camera = new Camera(0, 0, 0, 0, 0);
 
         engine.renderPost = (g) -> {
-            g.setColor(Color.BLACK);
-            g.fillRect(engine.canvas.getWidth()/2-2,engine.canvas.getHeight()/2-2,4,4);
-            g.setColor(Color.WHITE);
-            g.fillRect(engine.canvas.getWidth()/2-1,engine.canvas.getHeight()/2-1,2,2);
+            g.setColor(Color.GREEN);
+            g.fillRect(engine.canvas.getWidth() / 2 - 1, engine.canvas.getHeight() / 2 - 1, 2, 2);
+            g.fillRect(engine.canvas.getWidth() / 2 - 6 + (int) shot, engine.canvas.getHeight() / 2 - 2, 1, 4);
+            g.fillRect(engine.canvas.getWidth() / 2 + 5 - (int) shot, engine.canvas.getHeight() / 2 - 2, 1, 4);
         };
+
+        engine.renderPre = (g) -> {
+            g.setColor(new Color(255,150,0));
+            //g.fillRect(0,engine.canvas.getHeight()/2,engine.canvas.getWidth(),engine.canvas.getHeight()/2);
+        };
+
+        engine.canvas.addMouseListener(new MouseListener() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+
+            }
+
+            @Override
+            public void mousePressed(MouseEvent e) {
+                shoot = true;
+            }
+
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                shoot = false;
+            }
+
+            @Override
+            public void mouseEntered(MouseEvent e) {
+
+            }
+
+            @Override
+            public void mouseExited(MouseEvent e) {
+
+            }
+        });
 
         engine.canvas.addMouseMotionListener(new MouseMotionListener() {
             @Override
@@ -133,7 +160,13 @@ public class Driver {
             time += delta;
             {
                 camera.r = mouseX / 5f;
-                camera.p = (mouseY - engine.canvas.getHeight() / 2) * 2;
+                camera.p = (mouseY - engine.canvas.getHeight() / 2) * 2 + shot;
+                shot = Maths.lerp(shot, crouch ? 3 : 0, 0.05f, delta);
+                if (shoot && shotTime > 0.5f) {
+                    shot -= 50;
+                    shotTime = 0;
+                }
+                shotTime += delta;
                 float speed;
                 if (walk) {
                     speed = walkspeed;
@@ -154,6 +187,14 @@ public class Driver {
                 if (moveBackward) {
                     camera.x -= Math.cos(Math.toRadians(camera.r)) * speed * delta;
                     camera.y -= Math.sin(Math.toRadians(camera.r)) * speed * delta;
+                }
+                if (moveRight) {
+                    camera.x += Math.cos(Math.toRadians(camera.r + 90)) * speed * delta / 2;
+                    camera.y += Math.sin(Math.toRadians(camera.r + 90)) * speed * delta / 2;
+                }
+                if (moveLeft) {
+                    camera.x -= Math.cos(Math.toRadians(camera.r + 90)) * speed * delta / 2;
+                    camera.y -= Math.sin(Math.toRadians(camera.r + 90)) * speed * delta / 2;
                 }
             }
             engine.renderWorld(delta, world, camera);
