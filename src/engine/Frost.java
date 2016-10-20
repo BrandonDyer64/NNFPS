@@ -2,26 +2,27 @@ package engine;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.*;
 import java.awt.image.BufferStrategy;
-import java.util.LinkedList;
+import java.util.*;
 
-public class FrostByte {
+public class Frost {
 
     public JFrame frame;
     public Canvas canvas;
     public float fov = 50f;
     public float renderDistance = 2000;
-    public float clipDistance = 0;
+    public float priorityDistance = 2f;
+    public float clipDistance = 0.1f;
+    public int renderLayers = 32;
 
     public Render renderPre = null;
     public Render renderPost = null;
 
-    public FrostByte(String title) {
+    public Frost(String title) {
         this(title, 640, 400);
     }
 
-    public FrostByte(String title, int width, int height) {
+    public Frost(String title, int width, int height) {
         frame = new JFrame(title);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setSize(640, 480);
@@ -44,7 +45,7 @@ public class FrostByte {
             renderPre.render(g);
         }
 
-        renderWorld(delta, world, camera, canvas.getWidth(), canvas.getHeight(), g);
+        renderWorldAdvanced(delta, world, camera, canvas.getWidth(), canvas.getHeight(), g);
 
         if (renderPost != null) {
             renderPost.render(g);
@@ -69,7 +70,7 @@ public class FrostByte {
             if (selectedWall != null) {
                 int h = (int) ((height / nearest) * selectedWall.height);
                 int he = (int) (height / nearest);
-                int y = height / 2 + he / 2 - (int) camera.p  + (int) ((camera.z * 2000) / (nearest * 10 + 1));
+                int y = height / 2 + he / 2 - (int) camera.p + (int) ((camera.z * 2000) / (nearest * 10 + 1));
                 RenderLine renderLine = new RenderLine(camera.x + (float) Math.cos(dir) * nearest, camera.y + (float) Math.sin(dir) * nearest, pixel, y, 1, h, nearest, Color.WHITE, camera);
                 if (selectedWall.shader != null) {
                     renderLine = selectedWall.shader.shade(renderLine);
@@ -80,6 +81,55 @@ public class FrostByte {
                 renderLine.draw(g);
             }
         }
+    }
+
+    public void renderWorldAdvanced(float delta, World world, Camera camera, int width, int height, Graphics2D g) {
+        for (int pixel = 0; pixel < width; pixel++) {
+            HashMap<Float, Wall> walls = new HashMap<>();
+            double dir = Math.toRadians(camera.r + (-width / 2 + pixel) * (fov / height));
+            for (Wall wall : world.walls) {
+                float dist = getRayCast(camera.x, camera.y, camera.x + (float) Math.cos(dir) * renderDistance, camera.y + (float) Math.sin(dir) * renderDistance, wall.x1, wall.y1, wall.x2, wall.y2);
+                if (dist > clipDistance)
+                    walls.put(dist, wall);
+            }
+            int i = walls.keySet().size();
+            boolean forceDraw = false;
+            for (Object disto : Maths.sortReverse(walls.keySet())) {
+                Float dist = (Float) disto;
+                Wall wall = walls.get(dist);
+                i--;
+                if ((i > renderLayers && dist > priorityDistance && dist > wall.priorityDistance) && !forceDraw)
+                    continue;
+                forceDraw = dist <= priorityDistance;
+                int h = (int) ((height / dist) * wall.height);
+                int he = (int) (height / dist);
+                int y = height / 2 + he / 2 - (int) camera.p + (int) ((camera.z * 2000) / (dist * 10 + 1));
+                RenderLine renderLine = new RenderLine(camera.x + (float) Math.cos(dir) * dist, camera.y + (float) Math.sin(dir) * dist, pixel, y, 1, h, dist, Color.WHITE, camera);
+                if (wall.shader != null) {
+                    renderLine = walls.get(dist).shader.shade(renderLine);
+                }
+                if (world.shader != null) {
+                    renderLine = world.shader.shade(renderLine);
+                }
+                renderLine.draw(g);
+            }
+        }
+    }
+
+    public float[] renderWorld(World world, Camera camera, int width, int height) {
+        float[] out = new float[width];
+        for (int pixel = 0; pixel < width; pixel++) {
+            float nearest = renderDistance;
+            double dir = Math.toRadians(camera.r + (-width / 2 + pixel) * (fov / height));
+            for (Wall wall : world.walls) {
+                float dist = getRayCast(camera.x, camera.y, camera.x + (float) Math.cos(dir) * renderDistance, camera.y + (float) Math.sin(dir) * renderDistance, wall.x1, wall.y1, wall.x2, wall.y2);
+                if (dist < nearest && dist > clipDistance) {
+                    nearest = dist;
+                }
+            }
+            out[pixel] = nearest;
+        }
+        return out;
     }
 
 
