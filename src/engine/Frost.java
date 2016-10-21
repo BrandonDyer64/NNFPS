@@ -13,7 +13,7 @@ public class Frost {
     public float renderDistance = 2000;
     public float priorityDistance = 2f;
     public float clipDistance = 0.1f;
-    public int renderLayers = 32;
+    public int renderLayers = 3;
 
     public Render renderPre = null;
     public Render renderPost = null;
@@ -25,7 +25,7 @@ public class Frost {
     public Frost(String title, int width, int height) {
         frame = new JFrame(title);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setSize(640, 480);
+        frame.setSize(width, height);
         frame.setLocationRelativeTo(null);
         frame.add(canvas = new Canvas());
     }

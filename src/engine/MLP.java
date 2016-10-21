@@ -68,7 +68,7 @@ public class MLP {
             return nextError;
         }
     }
-    MLPLayer[] layers;
+    public MLPLayer[] layers;
 
     public MLP(int inputSize, int[] layersSize) {
         layers = new MLPLayer[layersSize.length];

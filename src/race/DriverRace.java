@@ -4,6 +4,7 @@ import engine.*;
 
 import java.awt.*;
 import java.awt.event.*;
+import java.util.LinkedList;
 import java.util.Random;
 
 /**
@@ -11,16 +12,18 @@ import java.util.Random;
  */
 public class DriverRace {
 
-    public static float time = 0;
+    public static float time = 0, snapTime = 0;
     public static int mouseX = 0, mouseY = 0;
     public static boolean moveForward, moveBackward, moveLeft, moveRight, walk, crouch, shoot;
-    public static float runspeed = 2.0f, walkspeed = 1f, crouchspeed = 0.8f;
+    public static float runspeed = 5.0f, walkspeed = 1f, crouchspeed = 10f;
     public static float shot = 0, shotTime = 0;
-    public static MLP network = new MLP(3, new int[]{20, 4});
+    public static boolean useAI = false, runSnapshots = false;
+    public static MLP network = new MLP(3, new int[]{30, 2, 1});
     public static Random random = new Random();
+    public static LinkedList<Snapshot> snapshots = new LinkedList<>();
 
     public static void main(String[] args) {
-        Frost engine = new Frost("Test Game");
+        Frost engine = new Frost("Test Game", 1000, 600);
         engine.frame.setVisible(true);
         World world = new World();
         world.shader = line -> {
@@ -29,39 +32,8 @@ public class DriverRace {
             //line.height += (Math.cos(line.wX * 10 + time) + Math.sin(line.wY * 10 + time)) * 20;
             return line;
         };
-        world.walls.add(new Wall(3, 3, 3, -3, 1, line -> {
-            line.color = Color.WHITE;
-            return line;
-        }));
-        world.walls.add(new Wall(3, -3, -3, -3, 1, line -> {
-            line.color = Color.WHITE;
-            return line;
-        }));
-        world.walls.add(new Wall(-3, 3, -3, -3, 1, line -> {
-            line.color = Color.WHITE;
-            return line;
-        }));
-        world.walls.add(new Wall(3, 3, -3, 3, 1, line -> {
-            line.color = Color.WHITE;
-            return line;
-        }));
-        world.walls.add(new Wall(0.05f, 0.05f, 0.05f, -0.05f, 0.01f, line -> {
-            line.color = Color.GREEN;
-            return line;
-        }));
-        world.walls.add(new Wall(0.05f, -0.05f, -0.05f, -0.05f, 0.01f, line -> {
-            line.color = Color.GREEN;
-            return line;
-        }));
-        world.walls.add(new Wall(-0.05f, 0.05f, -0.05f, -0.05f, 0.01f, line -> {
-            line.color = Color.GREEN;
-            return line;
-        }));
-        world.walls.add(new Wall(0.05f, 0.05f, -0.05f, 0.05f, 0.01f, line -> {
-            line.color = Color.GREEN;
-            return line;
-        }));
-        Camera camera = new Camera(0, -2, 0, 0, 0);
+        generateTrack(world);
+        Camera camera = new Camera(-4, 4, 0, 0, 0);
 
         engine.renderPost = (g) -> {
             g.setColor(Color.GREEN);
@@ -144,6 +116,17 @@ public class DriverRace {
                     case KeyEvent.VK_CONTROL:
                         crouch = true;
                         break;
+                    case KeyEvent.VK_P:
+                        useAI ^= true;
+                        break;
+                    case KeyEvent.VK_O:
+                        runSnapshots = true;
+                        break;
+                    case KeyEvent.VK_C:
+                        camera.x = -4;
+                        camera.y = 4;
+                        camera.r = 0;
+                        break;
                 }
             }
 
@@ -173,15 +156,37 @@ public class DriverRace {
             }
         });
 
+        network.layers[network.layers.length - 1].setIsSigmoid(false);
+
         long oldTime = System.nanoTime();
         while (true) {
             long newTime = System.nanoTime();
             float delta = (newTime - oldTime) / 1000000000f;
             oldTime = newTime;
             time += delta;
-            {
-                camera.r += (mouseX - engine.canvas.getWidth() / 2) / 200f;
-                camera.p = (mouseY - engine.canvas.getHeight() / 2) * 2 + shot;
+            snapTime += delta;
+            if (time > 3f) {
+                int tX, tY;
+                float[] nnin = engine.renderWorld(world, camera, 3, 3);
+                int nX = (int) (network.run(nnin)[0]);
+                if (useAI) {
+                    tX = nX;
+                    tY = 0;
+                } else {
+                    tX = mouseX - engine.canvas.getWidth() / 2;
+                    if (snapTime > 0.5f) {
+                        snapTime = 0;
+                        snapshots.add(new Snapshot(nnin, tX));
+                        System.out.println("Snapshot taken. I: " + snapshots.size() + "\tError: " + Math.abs(tX - nX));
+                    }
+                    tY = mouseY - engine.canvas.getHeight() / 2;
+                }
+                if (runSnapshots) {
+                    runSnapshots();
+                    runSnapshots = false;
+                }
+                camera.r += tX * delta;
+                camera.p = (tY) * 2 + shot;
                 shotTime += delta;
                 float speed;
                 if (walk) {
@@ -192,21 +197,68 @@ public class DriverRace {
                     speed = runspeed;
                 }
                 if (crouch) {
-                    camera.z = -1f;
+                    camera.z = 10f;
                 } else {
                     camera.z = 0;
                 }
                 camera.x += Math.cos(Math.toRadians(camera.r)) * speed * delta;
                 camera.y += Math.sin(Math.toRadians(camera.r)) * speed * delta;
                 shot = Maths.lerp(shot, crouch ? 3 : 0, 0.05f, delta);
-                if (shoot && shotTime > 0.5f) {
-                    shot -= 50;
-                    shotTime = 0;
-                }
             }
             engine.renderWorld(delta, world, camera);
 
         }
+    }
+
+    public static void runSnapshots() {
+        for (int i = 0; i < 2400; i++) {
+            for (Snapshot snapshot : snapshots) {
+                network.train(snapshot.ins, new float[]{snapshot.out}, 0.1f, 2f);
+            }
+        }
+        snapshots.clear();
+    }
+
+    public static void generateTrack(World world) {
+        float size = 6f;
+        // Inner Square 1
+        for (int i = 0; i < 2; i++) {
+            for (int j = 0; j < 2; j++) {
+                world.walls.add(new Wall(i * size - size / 2, i * size - size / 2, j * size - size / 2, size - j * size - size / 2, 0.2f, line -> {
+                    line.color = Color.WHITE;
+                    return line;
+                }));
+            }
+        }
+        // Inner Square 2
+        for (int i = 0; i < 2; i++) {
+            for (int j = 0; j < 2; j++) {
+                world.walls.add(new Wall(size + i * size - size / 2, size + i * size - size / 2, size + j * size - size / 2, size - j * size + size - size / 2, 0.2f, line -> {
+                    line.color = Color.WHITE;
+                    return line;
+                }));
+            }
+        }
+        size *= 2;
+        // Inner Square 1
+        for (int i = 0; i < 2; i++) {
+            for (int j = 0; j < 2; j++) {
+                world.walls.add(new Wall(i * (i == 1 && j == 0 ? 0.5f : 1) * size - size / 2, i * (i == 1 && j == 1 ? 0.5f : 1) * size - size / 2, j * size - size / 2, size - j * size - size / 2, 0.2f, line -> {
+                    line.color = Color.WHITE;
+                    return line;
+                }));
+            }
+        }
+        // Inner Square 2
+        for (int i = 0; i < 2; i++) {
+            for (int j = 0; j < 2; j++) {
+                world.walls.add(new Wall(size + i * size - size + (i == 0 && j == 1 ? 0.5f : 0) * (size), size + i * size - size + (i == 0 && j == 0 ? 0.5f : 0) * (size), size + j * size - size, size - j * size + size - size, 0.2f, line -> {
+                    line.color = Color.WHITE;
+                    return line;
+                }));
+            }
+        }
+
     }
 
 }
